@@ -1,3 +1,5 @@
 .env
 node_modules/
 package-lock.json
+db_data/
+test-db.js
