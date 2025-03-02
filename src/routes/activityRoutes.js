@@ -1,51 +1,22 @@
 const express = require('express');
 const router = express.Router();
+const activityController = require('../controllers/activityController');
 
-// Função temporária para listar todas as atividades
-router.get('/', (req, res) => {
-    res.status(200).json({
-        message: 'Lista de atividades (simulado)',
-        activities: [
-            { id: 1, title: 'Atividade teste UM' },
-            { id: 2, title: 'Atividade teste DOIS' }
-        ]
-    });
-});
+// Rota para listar todas as atividades
+router.get('/', activityController.listActivities);
 
-// Função temporária para criar uma nova atividade
-router.post('/', (req, res) => {
-    res.status(201).json({ message: 'Atividade criada com sucesso (simulado)' });
-});
+// Rota para criar uma nova atividade
+router.post('/', activityController.createActivity);
 
-// Função temporária para editar uma atividade
-router.put('/:id', (req, res) => {
-    res.status(200).json({ message: `Atividade ${req.params.id} editada com sucesso (simulado)` });
-});
+// Rota para inscrever-se em uma atividade
+router.post('/:activityId/register', activityController.registerForActivity);
 
-// Função temporária para excluir uma atividade
-router.delete('/:id', (req, res) => {
-    res.status(200).json({ message: `Atividade ${req.params.id} excluída com sucesso (simulado)` });
-});
+router.delete('/:activityId/cancel', activityController.cancelRegistration);
 
-// Função temporária para inscrever-se em uma atividade
-router.post('/:id/register', (req, res) => {
-    res.status(200).json({ message: `Inscrição na atividade ${req.params.id} realizada com sucesso (simulado)` });
-});
+router.put('/:activityId', activityController.editActivity);
 
-// Função temporária para cancelar inscrição em uma atividade
-router.delete('/:id/cancel', (req, res) => {
-    res.status(200).json({ message: `Inscrição na atividade ${req.params.id} cancelada com sucesso (simulado)` });
-});
+router.delete('/:activityId', activityController.deleteActivity);
 
-// Função temporária para visualizar participantes de uma atividade
-router.get('/:id/participants', (req, res) => {
-    res.status(200).json({
-        message: `Participantes da atividade ${req.params.id} (simulado)`,
-        participants: [
-            { id: 1, name: 'Teste UM' },
-            { id: 2, name: 'Teste DOIS' }
-        ]
-    });
-});
+router.get('/:activityId/participants', activityController.getActivityParticipants);
 
 module.exports = router;

@@ -5,13 +5,12 @@ const fs = require('fs');
 class Database {
     constructor(dbName) {
         this.dbPath = path.resolve(__dirname, '../../db_data', dbName);
-        this.db = null;
+        this.db = new RocksDB(this.dbPath); // Instância do RocksDB
         this.isOpening = false;
         this.isOpen = false;
     }
 
     open(callback) {
-        // Evita múltiplas tentativas de abertura simultâneas
         if (this.isOpening) {
             return callback(new Error('Banco de dados já está em processo de abertura'));
         }
@@ -31,7 +30,6 @@ class Database {
             }
         } catch (err) {
             console.warn('Não foi possível remover o arquivo LOCK:', err.message);
-            // Continua mesmo se não conseguir remover
         }
 
         // Garante que o diretório exista
@@ -43,8 +41,6 @@ class Database {
                 return callback(err);
             }
         }
-
-        this.db = new RocksDB(this.dbPath);
 
         const options = {
             createIfMissing: true,
@@ -82,38 +78,6 @@ class Database {
         });
     }
 
-    readAllData(callback) {
-        if (!this.db || !this.isOpen) {
-            return callback(new Error('O banco de dados não está aberto'));
-        }
-
-        const data = [];
-        const iterator = this.db.iterator({});
-
-        const loop = () => {
-            iterator.next((err, key, value) => {
-                if (err) {
-                    iterator.end(() => {
-                        callback(err);
-                    });
-                    return;
-                }
-
-                if (!key && !value) {
-                    iterator.end(() => {
-                        callback(null, data);
-                    });
-                    return;
-                }
-
-                data.push({ key: key.toString(), value: value.toString() });
-                loop();
-            });
-        };
-
-        loop();
-    }
-
     put(key, value, callback) {
         if (!this.db || !this.isOpen) {
             return callback(new Error('O banco de dados não está aberto'));
@@ -133,6 +97,13 @@ class Database {
             return callback(new Error('O banco de dados não está aberto'));
         }
         this.db.del(key, callback);
+    }
+
+    iterator(options) {
+        if (!this.db || !this.isOpen) {
+            throw new Error('O banco de dados não está aberto');
+        }
+        return this.db.iterator(options);
     }
 }
 
