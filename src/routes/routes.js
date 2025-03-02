@@ -3,7 +3,7 @@ const router = express.Router();
 const userRoutes = require('./userRoutes');
 const activityRoutes = require('./activityRoutes');
 
-// Rotas de usuário
+// Rotas de usuários
 router.use('/users', userRoutes);
 
 // Rotas de atividades
