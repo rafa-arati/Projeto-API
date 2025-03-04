@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
+const { authenticate } = require('../middlewares/authMiddleware');
 
-// Rota para registro de usuário
+// Rotas abertas
 router.post('/register', userController.register);
-
-// Rota para login de usuário
 router.post('/login', userController.login);
 
-router.get('/activities', userController.getUserActivities);
+// Rotas protegidas - mais RESTful
+router.get('/me/activities', authenticate, userController.getUserActivities);
 
 module.exports = router;

@@ -1,4 +1,5 @@
 const activityService = require('../services/activityService');
+const { validateActivity } = require('../utils/validation');
 
 class ActivityController {
     // Lista todas as atividades
@@ -21,6 +22,14 @@ class ActivityController {
                 return res.status(400).json({ message: 'Todos os campos são obrigatórios' });
             }
 
+            // Validação mais completa com o utilitário
+            const activityData = { title, description, date, location, maxParticipants };
+            const validation = validateActivity(activityData);
+            if (!validation.valid) {
+                return res.status(400).json({ message: validation.errors.join(', ') });
+            }
+
+            // Cria a atividade após as validações
             const activity = await activityService.createActivity(title, description, date, location, maxParticipants);
 
             res.status(201).json({
@@ -37,10 +46,10 @@ class ActivityController {
     async registerForActivity(req, res) {
         try {
             const { activityId } = req.params;
-            const { userId } = req.body;
+            const userId = req.userId; // Usar o ID do usuário autenticado
 
-            if (!activityId || !userId) {
-                return res.status(400).json({ message: 'ID da atividade e ID do usuário são obrigatórios' });
+            if (!activityId) {
+                return res.status(400).json({ message: 'ID da atividade é obrigatório' });
             }
 
             const registration = await activityService.registerForActivity(activityId, userId);
@@ -54,7 +63,7 @@ class ActivityController {
     async cancelRegistration(req, res) {
         try {
             const { activityId } = req.params;
-            const { userId } = req.body;
+            const userId = req.userId; // Usar o ID do usuário autenticado
 
             const result = await activityService.cancelRegistration(activityId, userId);
             res.status(200).json({ message: 'Inscrição cancelada com sucesso', result });
