@@ -2,11 +2,24 @@ const userRepository = require('../repositories/userRepository');
 const hashPassword = require('../utils/hashPassword');
 const comparePassword = require('../utils/comparePassword');
 const { generateToken } = require('../utils/jwtUtils');
+const { validateEmail, validatePassword } = require('../utils/validation');
+const config = require('../config');
 
 class UserService {
     // Registra um novo usuário
-    async registerUser(username, email, password, emailPassword) {
-        // Verifica se o e-mail ou nome de usuário já existe
+    async registerUser(username, email, password, emailPassword, isAdmin = false) {
+        // Validação de e-mail e senha
+        const emailValidation = validateEmail(email);
+        if (!emailValidation.valid) {
+            throw new Error(emailValidation.message);
+        }
+
+        const passwordValidation = validatePassword(password);
+        if (!passwordValidation.valid) {
+            throw new Error(passwordValidation.message);
+        }
+
+        // Verificar se o e-mail ou nome de usuário já existe
         const existingUser = await userRepository.findUserByEmailOrUsername(email, username);
         if (existingUser) {
             throw new Error('E-mail ou nome de usuário já está em uso');
@@ -15,8 +28,15 @@ class UserService {
         // Hash da senha
         const hashedPassword = await hashPassword(password);
 
+        // Determinar o papel (role) do usuário
+        let role = 'user';
+        // Se for o primeiro usuário ou o e-mail corresponder ao admin configurado
+        if (email === config.adminEmail || isAdmin) {
+            role = 'admin';
+        }
+
         // Cria o usuário no banco de dados
-        const user = await userRepository.createUser(username, email, hashedPassword, emailPassword);
+        const user = await userRepository.createUser(username, email, hashedPassword, emailPassword, role);
         return user;
     }
 
@@ -34,11 +54,12 @@ class UserService {
             throw new Error('Senha incorreta');
         }
 
-        // Gera o token JWT
-        const token = generateToken(user.email); // Usamos o e-mail como identificador único
-        return token;
+        // Gera o token JWT (incluir o role no token)
+        const token = generateToken(user.email, user.role || 'user');
+        return { token, role: user.role || 'user' };
     }
 
+    // Busca as atividades em que um usuário está inscrito
     async getUserActivities(userId) {
         const activities = await userRepository.getUserActivities(userId);
         return activities;

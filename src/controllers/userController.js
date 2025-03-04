@@ -1,4 +1,5 @@
 const userService = require('../services/userService');
+const { validateEmail, validatePassword } = require('../utils/validation');
 
 class UserController {
     // Registra um novo usuário
@@ -15,6 +16,16 @@ class UserController {
             const user = await userService.registerUser(username, email, password, emailPassword);
 
             res.status(201).json({ message: 'Usuário registrado com sucesso', user });
+
+            const emailValidation = validateEmail(email);
+            if (!emailValidation.valid) {
+                return res.status(400).json({ message: emailValidation.message });
+            }
+
+            const passwordValidation = validatePassword(password);
+            if (!passwordValidation.valid) {
+                return res.status(400).json({ message: passwordValidation.message });
+            }
         } catch (error) {
             res.status(500).json({ message: error.message });
         }
@@ -41,8 +52,8 @@ class UserController {
 
     async getUserActivities(req, res) {
         try {
-            const { userId } = req.body;
-
+            const userId = req.userId; // Usar o ID do usuário autenticado
+            
             const activities = await userService.getUserActivities(userId);
             res.status(200).json({ activities });
         } catch (error) {
