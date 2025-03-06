@@ -1,19 +1,22 @@
 const jwt = require('jsonwebtoken');
-const config = require('../config');
+const dotenv = require('dotenv');
 
-// Chave secreta para assinar os tokens (do arquivo de configuração)
-const JWT_SECRET = config.jwtSecret;
+// Carrega as variáveis de ambiente do arquivo .env
+dotenv.config();
+
+// Chave secreta para assinar os tokens (armazenada no .env)
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // Função para gerar um token JWT
 const generateToken = (userId, role = 'user') => {
-    return jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: config.jwtExpiresIn });
+    return jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: '1h' }); // Token expira em 1 hora
 };
 
 // Função para verificar um token JWT
 const verifyToken = (token) => {
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        return decoded; // Retorna o payload do token (userId e role)
+        return decoded; // Retorna o payload do token (neste caso, { userId, role })
     } catch (err) {
         return null; // Retorna null se o token for inválido ou expirado
     }

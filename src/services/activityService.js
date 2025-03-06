@@ -1,6 +1,4 @@
 const activityRepository = require('../repositories/activityRepository');
-const userRepository = require('../repositories/userRepository');
-const Database = require('../database/db');
 
 class ActivityService {
     // Lista todas as atividades
@@ -10,196 +8,236 @@ class ActivityService {
 
     // Cria uma nova atividade
     async createActivity(title, description, date, location, maxParticipants) {
-        const activity = { title, description, date, location, maxParticipants, participants: [] };
+        // Converter para número para garantir que é um valor válido
+        const maxPart = parseInt(maxParticipants, 10);
+        
+        // Normalizar o formato da data
+        const normalizedDate = this._normalizeDate(date);
+        
+        // Criar objeto de atividade
+        const activity = { 
+            title, 
+            description, 
+            date: normalizedDate, 
+            location, 
+            maxParticipants: maxPart,
+            participants: [] // Inicializa com array vazio
+        };
+        
+        console.log("Criando atividade:", activity);
+        
         const createdActivity = await activityRepository.createActivity(activity);
         return createdActivity;
     }
 
+    // Normaliza o formato da data para ISO string
+    _normalizeDate(dateInput) {
+        try {
+            // Se for uma string vazia ou null/undefined
+            if (!dateInput) {
+                // Data no futuro (1 dia a partir de agora)
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                return tomorrow.toISOString();
+            }
+            
+            // Converter para objeto Date e depois para ISO string
+            const dateObj = new Date(dateInput);
+            
+            // Verificar se é uma data válida
+            if (isNaN(dateObj.getTime())) {
+                console.warn(`Data inválida fornecida: "${dateInput}", usando data futura`);
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                return tomorrow.toISOString();
+            }
+            
+            return dateObj.toISOString();
+        } catch (error) {
+            console.error(`Erro ao normalizar data: ${error.message}`);
+            // Em caso de erro, retorna uma data futura
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            return tomorrow.toISOString();
+        }
+    }
+
+    // Verifica se a atividade já começou - CORRIGIDO
+    _hasActivityStarted(activityDate) {
+        try {
+            // Se a data for null, undefined ou string vazia
+            if (!activityDate) {
+                console.log("Data da atividade é nula ou indefinida, considerando como não iniciada");
+                return false;
+            }
+
+            // Garantir que as datas estão no mesmo formato
+            const activityDateObj = new Date(activityDate);
+            const now = new Date();
+            
+            // Para diagnóstico
+            console.log(`Comparando datas: 
+              - Atividade: ${activityDate} 
+              - Objeto Date da atividade: ${activityDateObj.toISOString()} 
+              - Agora: ${now.toISOString()}`);
+            
+            // Verificação da validade da data
+            if (isNaN(activityDateObj.getTime())) {
+                console.error(`Data inválida: "${activityDate}"`);
+                return false; // Se a data for inválida, assume que não começou
+            }
+            
+            // Comparar apenas as datas, sem considerar horas
+            const activityDateOnly = new Date(activityDateObj.getFullYear(), activityDateObj.getMonth(), activityDateObj.getDate());
+            const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            
+            const hasStarted = activityDateOnly < nowDateOnly;
+            console.log(`Resultado da comparação: a atividade ${hasStarted ? 'JÁ começou' : 'ainda NÃO começou'}`);
+            
+            return hasStarted;
+        } catch (error) {
+            console.error(`Erro ao verificar data da atividade: ${error.message}`);
+            return false; // Em caso de erro, assume que não começou
+        }
+    }
+
     // Inscreve um usuário em uma atividade
     async registerForActivity(activityId, userId) {
+        console.log(`Tentando registrar usuário ${userId} na atividade ${activityId}`);
+        
         const activity = await activityRepository.findActivityById(activityId);
         if (!activity) {
+            console.error(`Atividade não encontrada: ${activityId}`);
             throw new Error('Atividade não encontrada');
         }
 
-        // Verificar se a atividade já começou
-        const activityDate = new Date(activity.date);
-        const now = new Date();
-        if (activityDate < now) {
-            throw new Error('Não é possível se inscrever em uma atividade que já começou');
-        }
-
-        // Verifica se há vagas disponíveis
-        if (activity.participants && activity.participants.length >= activity.maxParticipants) {
-            throw new Error('Não há vagas disponíveis');
-        }
+        console.log(`Atividade encontrada:`, activity);
 
         // Verifica se o usuário já está inscrito
         const participants = activity.participants || [];
         if (participants.includes(userId)) {
-            throw new Error('Usuário já está inscrito nesta atividade');
+            console.log(`Usuário ${userId} já está inscrito na atividade ${activityId}`);
+            throw new Error(`Usuário já está inscrito nesta atividade`);
         }
 
-        // Adiciona o usuário à lista de participantes da atividade
+        // Verifica se a atividade já começou
+        if (this._hasActivityStarted(activity.date)) {
+            console.log(`Atividade ${activityId} já começou. Data: ${activity.date}`);
+            throw new Error('Não é possível se inscrever em uma atividade que já começou');
+        }
+
+        // Verifica se há vagas disponíveis
+        if (participants.length >= activity.maxParticipants) {
+            console.log(`Não há vagas disponíveis na atividade ${activityId}. Participantes: ${participants.length}, Máximo: ${activity.maxParticipants}`);
+            throw new Error('Não há vagas disponíveis');
+        }
+
+        // Adiciona o usuário à lista de participantes
         participants.push(userId);
         activity.participants = participants;
 
+        console.log(`Adicionando usuário ${userId} à atividade ${activityId}. Total de participantes: ${participants.length}`);
+
         // Atualiza a atividade no banco de dados
         await activityRepository.updateActivity(activityId, activity);
-
-        // Atualiza a lista de atividades do usuário
-        await this.addActivityToUser(userId, activityId);
-
         return activity;
-    }
-
-    // Adiciona uma atividade à lista de atividades do usuário
-    async addActivityToUser(userId, activityId) {
-        try {
-            const userDb = new Database('userActivities');
-
-            await new Promise((resolve, reject) => {
-                userDb.open((err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
-
-            // Chave para armazenar a relação entre usuário e atividade
-            const userActivityKey = `userActivity:${userId}:${activityId}`;
-
-            // Salvamos a inscrição no banco de dados
-            await new Promise((resolve, reject) => {
-                userDb.put(userActivityKey, JSON.stringify({ userId, activityId, registeredAt: new Date().toISOString() }), (err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
-
-            // Fechamos o banco de dados
-            await new Promise((resolve) => {
-                userDb.close((err) => {
-                    if (err) console.error('Erro ao fechar o banco de dados de atividades do usuário:', err);
-                    resolve();
-                });
-            });
-
-        } catch (error) {
-            console.error('Erro ao adicionar atividade ao usuário:', error);
-            throw error;
-        }
-    }
-
-    // Remove uma atividade da lista de atividades do usuário
-    async removeActivityFromUser(userId, activityId) {
-        try {
-            const userDb = new Database('userActivities');
-
-            await new Promise((resolve, reject) => {
-                userDb.open((err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
-
-            // Chave para armazenar a relação entre usuário e atividade
-            const userActivityKey = `userActivity:${userId}:${activityId}`;
-
-            // Removemos a inscrição do banco de dados
-            await new Promise((resolve, reject) => {
-                userDb.del(userActivityKey, (err) => {
-                    if (err) {
-                        if (err.notFound || err.type === 'NotFoundError') {
-                            // Se não encontrar, não é um erro crítico
-                            resolve();
-                        } else {
-                            reject(err);
-                        }
-                    } else {
-                        resolve();
-                    }
-                });
-            });
-
-            // Fechamos o banco de dados
-            await new Promise((resolve) => {
-                userDb.close((err) => {
-                    if (err) console.error('Erro ao fechar o banco de dados de atividades do usuário:', err);
-                    resolve();
-                });
-            });
-
-        } catch (error) {
-            console.error('Erro ao remover atividade do usuário:', error);
-            throw error;
-        }
     }
 
     // Cancela a inscrição de um usuário em uma atividade
     async cancelRegistration(activityId, userId) {
-        // Busca a atividade
+        console.log(`Tentando cancelar registro do usuário ${userId} na atividade ${activityId}`);
+        
         const activity = await activityRepository.findActivityById(activityId);
         if (!activity) {
+            console.error(`Atividade não encontrada: ${activityId}`);
             throw new Error('Atividade não encontrada');
-        }
-
-        // Verificar se a atividade já começou
-        const activityDate = new Date(activity.date);
-        const now = new Date();
-        if (activityDate < now) {
-            throw new Error('Não é possível cancelar inscrição em uma atividade que já começou');
         }
 
         // Verifica se o usuário está inscrito
         const participants = activity.participants || [];
         if (!participants.includes(userId)) {
-            throw new Error('Usuário não está inscrito nesta atividade');
+            console.log(`Usuário ${userId} não está inscrito na atividade ${activityId}`);
+            throw new Error(`Usuário não está inscrito nesta atividade`);
+        }
+
+        // Verifica se a atividade já começou
+        if (this._hasActivityStarted(activity.date)) {
+            console.log(`Atividade ${activityId} já começou. Data: ${activity.date}`);
+            throw new Error('Não é possível cancelar inscrição em uma atividade que já começou');
         }
 
         // Remove o usuário da lista de participantes
         activity.participants = participants.filter(id => id !== userId);
+        
+        console.log(`Removendo usuário ${userId} da atividade ${activityId}`);
 
         // Atualiza a atividade no banco de dados
         await activityRepository.updateActivity(activityId, activity);
-
-        // Remove a atividade da lista de atividades do usuário
-        await this.removeActivityFromUser(userId, activityId);
-
         return activity;
     }
 
     // Edita uma atividade existente
     async editActivity(activityId, updates) {
+        console.log(`Tentando editar atividade ${activityId}`, updates);
+        
         const activity = await activityRepository.findActivityById(activityId);
         if (!activity) {
+            console.error(`Atividade não encontrada: ${activityId}`);
             throw new Error('Atividade não encontrada');
         }
 
-        const updatedActivity = { ...activity, ...updates };
+        console.log(`Atividade encontrada para edição:`, activity);
+
+        // Normalizar a data se for fornecida
+        if (updates.date) {
+            updates.date = this._normalizeDate(updates.date);
+        }
+
+        // Se houver um campo maxParticipants, garanta que seja um número
+        if (updates.maxParticipants) {
+            updates.maxParticipants = parseInt(updates.maxParticipants, 10);
+        }
+
+        // Preservar o ID e a lista de participantes
+        const updatedActivity = { 
+            ...activity, 
+            ...updates, 
+            id: activity.id,
+            participants: activity.participants || [] 
+        };
+        
+        console.log(`Atualizando atividade ${activityId} para:`, updatedActivity);
+
         await activityRepository.updateActivity(activityId, updatedActivity);
         return updatedActivity;
     }
 
     // Exclui uma atividade
     async deleteActivity(activityId) {
+        console.log(`Tentando excluir atividade ${activityId}`);
+        
         const activity = await activityRepository.findActivityById(activityId);
         if (!activity) {
+            console.error(`Atividade não encontrada: ${activityId}`);
             throw new Error('Atividade não encontrada');
         }
 
-        // Remove a inscrição de todos os participantes
-        if (activity.participants && activity.participants.length > 0) {
-            for (const userId of activity.participants) {
-                await this.removeActivityFromUser(userId, activityId);
-            }
-        }
-
         await activityRepository.deleteActivity(activityId);
+        console.log(`Atividade ${activityId} excluída com sucesso`);
     }
 
     // Busca os participantes de uma atividade
     async getActivityParticipants(activityId) {
-        return await activityRepository.getActivityParticipants(activityId);
+        console.log(`Buscando participantes da atividade ${activityId}`);
+        
+        const activity = await activityRepository.findActivityById(activityId);
+        if (!activity) {
+            console.error(`Atividade não encontrada: ${activityId}`);
+            throw new Error('Atividade não encontrada');
+        }
+
+        console.log(`Participantes da atividade ${activityId}:`, activity.participants || []);
+        return activity.participants || [];
     }
 }
 

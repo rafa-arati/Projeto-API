@@ -1,20 +1,27 @@
 const express = require('express');
 const router = express.Router();
 const activityController = require('../controllers/activityController');
-const { authenticate, isAdmin } = require('../middlewares/authMiddleware');
+const { authMiddleware, isAdmin } = require('../middlewares/authMiddleware');
 
-// Rota aberta para listar todas as atividades
-router.get('/', activityController.listActivities);
+// Rota para listar todas as atividades
+router.get('/', authMiddleware, activityController.listActivities);
 
-// Rotas protegidas - requerem autenticação
-// Rotas que requerem ser admin
-router.post('/', authenticate, isAdmin, activityController.createActivity);
-router.put('/:activityId', authenticate, isAdmin, activityController.editActivity);
-router.delete('/:activityId', authenticate, isAdmin, activityController.deleteActivity);
-router.get('/:activityId/participants', authenticate, isAdmin, activityController.getActivityParticipants);
+// Rota para criar uma nova atividade (apenas admin)
+router.post('/', authMiddleware, isAdmin, activityController.createActivity);
 
-// Rotas que requerem apenas autenticação (usuário comum pode acessar)
-router.post('/:activityId/register', authenticate, activityController.registerForActivity);
-router.delete('/:activityId/cancel', authenticate, activityController.cancelRegistration);
+// Rota para inscrever-se em uma atividade
+router.post('/:activityId/register', authMiddleware, activityController.registerForActivity);
+
+// Rota para cancelar inscrição em uma atividade
+router.delete('/:activityId/cancel', authMiddleware, activityController.cancelRegistration);
+
+// Rota para editar uma atividade (apenas admin)
+router.put('/:activityId', authMiddleware, isAdmin, activityController.editActivity);
+
+// Rota para excluir uma atividade (apenas admin)
+router.delete('/:activityId', authMiddleware, isAdmin, activityController.deleteActivity);
+
+// Rota para listar participantes de uma atividade (apenas admin)
+router.get('/:activityId/participants', authMiddleware, isAdmin, activityController.getActivityParticipants);
 
 module.exports = router;

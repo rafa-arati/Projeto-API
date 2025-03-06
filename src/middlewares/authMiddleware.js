@@ -1,45 +1,48 @@
 const { verifyToken } = require('../utils/jwtUtils');
-const userRepository = require('../repositories/userRepository');
 
-// Middleware para verificar autenticação
-const authenticate = (req, res, next) => {
-    try {
-        // Obter o token do cabeçalho Authorization
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ message: 'Token de autenticação não fornecido' });
-        }
+const authMiddleware = (req, res, next) => {
+    // Obter o token do cabeçalho de autorização
+    const authHeader = req.headers.authorization;
 
-        // Extrair o token da string "Bearer TOKEN"
-        const token = authHeader.split(' ')[1];
-        
-        // Verificar o token
-        const decoded = verifyToken(token);
-        if (!decoded) {
-            return res.status(401).json({ message: 'Token inválido ou expirado' });
-        }
-
-        // Adicionar informações do usuário à requisição
-        req.userId = decoded.userId;
-        req.userRole = decoded.role;
-        
-        next();
-    } catch (error) {
-        return res.status(401).json({ message: 'Erro na autenticação', error: error.message });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Token de autenticação não fornecido' });
     }
+
+    // Extrair o token do cabeçalho (removendo a parte 'Bearer ')
+    const token = authHeader.split(' ')[1];
+
+    console.log('Token recebido:', token.substring(0, 20) + '...');
+
+    // Verificar o token
+    const decoded = verifyToken(token);
+    console.log('Token decodificado:', decoded);
+
+    if (!decoded) {
+        return res.status(401).json({ message: 'Token inválido ou expirado' });
+    }
+
+    // Adicionar as informações do usuário ao objeto de requisição
+    req.userId = decoded.userId;
+    req.userRole = decoded.role || 'user';
+
+    console.log(`Usuário autenticado: ${req.userId}, Role: ${req.userRole}`);
+
+    // Permitir que a requisição continue
+    next();
 };
 
-// Middleware para verificar se o usuário é um administrador
-const isAdmin = async (req, res, next) => {
-    try {
-        // Verificar diretamente pelo userRole no token
-        if (req.userRole !== 'admin') {
-            return res.status(403).json({ message: 'Acesso negado: apenas administradores podem realizar esta ação' });
-        }
-        next();
-    } catch (error) {
-        return res.status(500).json({ message: 'Erro ao verificar permissões', error: error.message });
+// Middleware para verificar se o usuário é administrador
+const isAdmin = (req, res, next) => {
+    // Este middleware deve ser usado após o authMiddleware
+    console.log(`Verificando permissão admin. Role do usuário: ${req.userRole}`);
+
+    if (req.userRole !== 'admin') {
+        console.log(`Acesso negado. Role esperado: admin, encontrado: ${req.userRole}`);
+        return res.status(403).json({ message: 'Acesso negado: Permissão de administrador necessária' });
     }
+
+    console.log('Permissão de admin confirmada.');
+    next();
 };
 
-module.exports = { authenticate, isAdmin };
+module.exports = { authMiddleware, isAdmin };
