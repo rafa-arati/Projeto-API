@@ -1,78 +1,43 @@
 const Database = require('../database/db');
-const db = new Database('activities'); // Cria uma instância do banco de dados para atividades
-
-// Função utilitária para abrir o banco de dados e executar uma operação
-async function withDB(callback) {
-    await new Promise((resolve, reject) => {
-        db.open((err) => {
-            if (err) {
-                reject(err);
-            } else {
-                resolve();
-            }
-        });
-    });
-
-    return await callback();
-}
 
 class ActivityRepository {
     // Lista todas as atividades
     async findAllActivities() {
+        const db = Database.getInstance('activities');
         try {
-            await new Promise((resolve, reject) => {
-                db.open((err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
-
+            console.log('Buscando todas as atividades');
             const activities = [];
 
-            return new Promise((resolve, reject) => {
-                const iterator = db.iterator({});
+            const allItems = await db.listAll();
 
-                const loop = () => {
-                    iterator.next((err, key, value) => {
-                        if (err) {
-                            iterator.end(() => reject(err));
-                            return;
+            for (const item of allItems) {
+                if (item.key.toString().startsWith('activity:')) {
+                    try {
+                        const activity = item.value;
+                        // Garanta que o ID esteja no objeto
+                        if (!activity.id) {
+                            activity.id = item.key;
                         }
+                        activities.push(activity);
+                    } catch (e) {
+                        console.error("Erro ao processar atividade:", e);
+                    }
+                }
+            }
 
-                        if (!key && !value) {
-                            iterator.end(() => {
-                                resolve(activities);
-                            });
-                            return;
-                        }
-
-                        if (key.toString().startsWith('activity:')) {
-                            try {
-                                const activity = JSON.parse(value.toString());
-                                // Garanta que o ID esteja no objeto
-                                if (!activity.id) {
-                                    activity.id = key.toString();
-                                }
-                                activities.push(activity);
-                            } catch (e) {
-                                console.error("Erro ao parsear atividade:", e);
-                            }
-                        }
-
-                        loop();
-                    });
-                };
-
-                loop();
-            });
+            console.log(`Encontradas ${activities.length} atividades`);
+            return activities;
         } catch (error) {
             console.error("Erro ao listar atividades:", error);
             throw error;
+        } finally {
+            await db.close();
         }
     }
 
     // Cria uma nova atividade
     async createActivity(activity) {
+        const db = Database.getInstance('activities');
         try {
             const timestamp = Date.now();
             const activityId = `activity:${timestamp}`;
@@ -83,146 +48,187 @@ class ActivityRepository {
                 id: activityId
             };
 
-            // Abra o banco de dados
-            await new Promise((resolve, reject) => {
-                db.open((err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
+            console.log(`Criando atividade com ID: ${activityId}`, activityWithId);
 
             // Salve a atividade
-            await new Promise((resolve, reject) => {
-                db.put(activityId, JSON.stringify(activityWithId), (err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
+            await db.put(activityId, JSON.stringify(activityWithId));
 
             return activityWithId;
         } catch (error) {
             console.error("Erro ao criar atividade:", error);
             throw error;
+        } finally {
+            await db.close();
         }
-    }
-
-    // Inscreve um usuário em uma atividade
-    async registerForActivity(activityId, userId) {
-        return await withDB(async () => {
-            const activity = await this.findActivityById(activityId);
-            if (!activity) {
-                throw new Error('Atividade não encontrada');
-            }
-
-            // Verifica se há vagas disponíveis
-            if (activity.participants && activity.participants.length >= activity.maxParticipants) {
-                throw new Error('Não há vagas disponíveis');
-            }
-
-            // Adiciona o usuário à lista de participantes
-            const participants = activity.participants || [];
-            participants.push(userId);
-            activity.participants = participants;
-
-            // Atualiza a atividade no banco de dados
-            await this.updateActivity(activityId, activity);
-            return activity;
-        });
     }
 
     // Busca uma atividade pelo ID
     async findActivityById(activityId) {
+        const db = Database.getInstance('activities');
         try {
+            // Garantir que estamos tratando strings
+            activityId = String(activityId);
+
             // Garanta que o ID tenha o formato correto
-            const fullActivityId = activityId.startsWith('activity:') 
-                ? activityId 
+            const fullActivityId = activityId.startsWith('activity:')
+                ? activityId
                 : `activity:${activityId}`;
-            
-            await new Promise((resolve, reject) => {
-                db.open((err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
-            
-            return new Promise((resolve, reject) => {
-                db.get(fullActivityId, (err, value) => {
-                    if (err) {
-                        if (err.notFound) {
-                            resolve(null);
-                        } else {
-                            console.error("Erro ao buscar atividade:", err);
-                            reject(err);
-                        }
-                    } else {
-                        try {
-                            const activity = JSON.parse(value.toString());
-                            // Garanta que o ID esteja no objeto
-                            if (!activity.id) {
-                                activity.id = fullActivityId;
-                            }
-                            resolve(activity);
-                        } catch (e) {
-                            console.error("Erro ao parsear atividade:", e);
-                            reject(e);
-                        }
-                    }
-                });
-            });
+
+            console.log(`Buscando atividade com ID: ${fullActivityId}`);
+
+            const value = await db.get(fullActivityId);
+
+            if (!value) {
+                console.log(`Atividade não encontrada: ${fullActivityId}`);
+                return null;
+            }
+
+            try {
+                const activity = JSON.parse(value.toString());
+                console.log(`Atividade encontrada:`, activity);
+
+                // Garanta que o ID esteja no objeto
+                if (!activity.id) {
+                    activity.id = fullActivityId;
+                }
+                return activity;
+            } catch (e) {
+                console.error(`Erro ao parsear atividade ${fullActivityId}:`, e);
+                throw e;
+            }
         } catch (error) {
-            console.error("Erro ao buscar atividade por ID:", error);
+            console.error(`Erro ao buscar atividade por ID ${activityId}:`, error);
             throw error;
+        } finally {
+            await db.close();
         }
     }
 
     // Atualiza uma atividade
     async updateActivity(activityId, activity) {
-        return await withDB(async () => {
+        const db = Database.getInstance('activities');
+        try {
+            // Garantir que estamos tratando strings
+            activityId = String(activityId);
+
             const fullActivityId = activityId.startsWith('activity:')
                 ? activityId
                 : `activity:${activityId}`;
 
-            await new Promise((resolve, reject) => {
-                db.put(fullActivityId, JSON.stringify(activity), (err) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve();
-                    }
-                });
-            });
-        });
+            console.log(`Atualizando atividade com ID: ${fullActivityId}`, activity);
+
+            // Assegure-se de que o ID está no objeto antes de salvar
+            const activityToSave = {
+                ...activity,
+                id: fullActivityId
+            };
+
+            await db.put(fullActivityId, JSON.stringify(activityToSave));
+            return activityToSave;
+        } catch (error) {
+            console.error(`Erro ao atualizar atividade ${activityId}:`, error);
+            throw error;
+        } finally {
+            await db.close();
+        }
     }
 
     // Exclui uma atividade
     async deleteActivity(activityId) {
-        return await withDB(async () => {
+        const db = Database.getInstance('activities');
+        try {
+            // Garantir que estamos tratando strings
+            activityId = String(activityId);
+
             const fullActivityId = activityId.startsWith('activity:')
                 ? activityId
                 : `activity:${activityId}`;
 
-            await new Promise((resolve, reject) => {
-                db.del(fullActivityId, (err) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve();
-                    }
-                });
-            });
-        });
+            console.log(`Excluindo atividade com ID: ${fullActivityId}`);
+
+            await db.del(fullActivityId);
+            console.log(`Atividade excluída: ${fullActivityId}`);
+        } catch (error) {
+            console.error(`Erro ao excluir atividade ${activityId}:`, error);
+            throw error;
+        } finally {
+            await db.close();
+        }
     }
 
     // Busca os participantes de uma atividade
     async getActivityParticipants(activityId) {
-        return await withDB(async () => {
+        try {
             const activity = await this.findActivityById(activityId);
             if (!activity) {
                 throw new Error('Atividade não encontrada');
             }
 
             return activity.participants || [];
-        });
+        } catch (error) {
+            console.error(`Erro ao buscar participantes da atividade ${activityId}:`, error);
+            throw error;
+        }
+    }
+
+    // Inscreve um usuário em uma atividade
+    async registerForActivity(activityId, userId) {
+        const db = Database.getInstance('activities');
+        try {
+            const activity = await this.findActivityById(activityId);
+            if (!activity) {
+                throw new Error('Atividade não encontrada');
+            }
+
+            // Verifica se há vagas disponíveis
+            const participants = activity.participants || [];
+            if (participants.length >= activity.maxParticipants) {
+                throw new Error('Não há vagas disponíveis');
+            }
+
+            // Adiciona o usuário à lista de participantes
+            participants.push(userId);
+            activity.participants = participants;
+
+            // Atualiza a atividade no banco de dados
+            await db.put(activity.id, JSON.stringify(activity));
+
+            console.log(`Usuário ${userId} inscrito na atividade ${activityId}`);
+
+            return activity;
+        } catch (error) {
+            console.error(`Erro ao registrar usuário ${userId} para atividade ${activityId}:`, error);
+            throw error;
+        } finally {
+            await db.close();
+        }
+    }
+
+    // Cancela a inscrição de um usuário em uma atividade
+    async cancelRegistration(activityId, userId) {
+        const db = Database.getInstance('activities');
+        try {
+            const activity = await this.findActivityById(activityId);
+            if (!activity) {
+                throw new Error('Atividade não encontrada');
+            }
+
+            // Remove o usuário da lista de participantes
+            const participants = activity.participants || [];
+            activity.participants = participants.filter(id => id !== userId);
+
+            // Atualiza a atividade no banco de dados
+            await db.put(activity.id, JSON.stringify(activity));
+
+            console.log(`Inscrição do usuário ${userId} cancelada para atividade ${activityId}`);
+
+            return activity;
+        } catch (error) {
+            console.error(`Erro ao cancelar inscrição do usuário ${userId} na atividade ${activityId}:`, error);
+            throw error;
+        } finally {
+            await db.close();
+        }
     }
 }
 

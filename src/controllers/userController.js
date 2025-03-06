@@ -5,17 +5,15 @@ class UserController {
     // Registra um novo usuário
     async register(req, res) {
         try {
-            const { username, email, password, emailPassword } = req.body;
+            const { username, email, password, emailPassword, role } = req.body;
+
+            // Log para debug
+            console.log('Registrando usuário:', { username, email, role });
 
             // Validação básica
             if (!username || !email || !password || !emailPassword) {
                 return res.status(400).json({ message: 'Todos os campos são obrigatórios' });
             }
-
-            // Chama o service para registrar o usuário
-            const user = await userService.registerUser(username, email, password, emailPassword);
-
-            res.status(201).json({ message: 'Usuário registrado com sucesso', user });
 
             const emailValidation = validateEmail(email);
             if (!emailValidation.valid) {
@@ -26,8 +24,25 @@ class UserController {
             if (!passwordValidation.valid) {
                 return res.status(400).json({ message: passwordValidation.message });
             }
+
+            // Chama o service para registrar o usuário
+            const user = await userService.registerUser(username, email, password, emailPassword, role);
+
+            // Remover a senha do objeto retornado
+            const userResponse = { ...user };
+            delete userResponse.password;
+            delete userResponse.emailPassword;
+
+            res.status(201).json({ message: 'Usuário registrado com sucesso', user: userResponse });
         } catch (error) {
-            res.status(500).json({ message: error.message });
+            console.error('Erro no cadastro de usuário:', error);
+            if (error.message.includes('já está em uso')) {
+                return res.status(409).json({ message: error.message });
+            }
+            res.status(500).json({
+                message: 'Erro ao registrar usuário',
+                error: error.message
+            });
         }
     }
 
@@ -46,17 +61,35 @@ class UserController {
 
             res.status(200).json({ message: 'Login realizado com sucesso', token });
         } catch (error) {
+            console.error('Erro no login:', error);
+            if (error.message.includes('não encontrado')) {
+                return res.status(404).json({ message: error.message });
+            }
+            if (error.message.includes('incorreta')) {
+                return res.status(401).json({ message: error.message });
+            }
             res.status(500).json({ message: error.message });
         }
     }
 
+    // Busca as atividades em que o usuário está inscrito
     async getUserActivities(req, res) {
         try {
-            const userId = req.userId; // Usar o ID do usuário autenticado
-            
+            // Obter o ID do usuário do token JWT (adicionado pelo middleware de autenticação)
+            const userId = req.userId;
+
+            console.log(`Buscando atividades para o usuário autenticado: ${userId}`);
+
+            if (!userId) {
+                return res.status(400).json({ message: 'ID do usuário não fornecido' });
+            }
+
             const activities = await userService.getUserActivities(userId);
+            console.log(`Retornando ${activities.length} atividades para o usuário ${userId}`);
+
             res.status(200).json({ activities });
         } catch (error) {
+            console.error('Erro ao buscar atividades do usuário:', error);
             res.status(500).json({ message: error.message });
         }
     }

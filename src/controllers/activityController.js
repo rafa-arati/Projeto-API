@@ -1,5 +1,4 @@
 const activityService = require('../services/activityService');
-const { validateActivity } = require('../utils/validation');
 
 class ActivityController {
     // Lista todas as atividades
@@ -8,6 +7,7 @@ class ActivityController {
             const activities = await activityService.getAllActivities();
             res.status(200).json({ activities });
         } catch (error) {
+            console.error("Erro ao listar atividades:", error);
             res.status(500).json({ message: error.message });
         }
     }
@@ -18,18 +18,11 @@ class ActivityController {
             const { title, description, date, location, maxParticipants } = req.body;
 
             // Validação básica
-            if (!title || !description || !date || !location || !maxParticipants) {
-                return res.status(400).json({ message: 'Todos os campos são obrigatórios' });
+            if (!title || !description || !location || !maxParticipants) {
+                return res.status(400).json({ message: 'Os campos título, descrição, local e número máximo de participantes são obrigatórios' });
             }
 
-            // Validação mais completa com o utilitário
-            const activityData = { title, description, date, location, maxParticipants };
-            const validation = validateActivity(activityData);
-            if (!validation.valid) {
-                return res.status(400).json({ message: validation.errors.join(', ') });
-            }
-
-            // Cria a atividade após as validações
+            // A data é opcional - se não for fornecida, o serviço usará uma data futura
             const activity = await activityService.createActivity(title, description, date, location, maxParticipants);
 
             res.status(201).json({
@@ -37,7 +30,7 @@ class ActivityController {
                 activity: activity
             });
         } catch (error) {
-            console.log('Controller - Erro:', error);
+            console.error('Controller - Erro ao criar atividade:', error);
             res.status(500).json({ message: error.message });
         }
     }
@@ -46,15 +39,33 @@ class ActivityController {
     async registerForActivity(req, res) {
         try {
             const { activityId } = req.params;
-            const userId = req.userId; // Usar o ID do usuário autenticado
+            const { userId } = req.body;
 
-            if (!activityId) {
-                return res.status(400).json({ message: 'ID da atividade é obrigatório' });
+            if (!activityId || !userId) {
+                return res.status(400).json({ message: 'ID da atividade e ID do usuário são obrigatórios' });
             }
+
+            console.log(`Tentando registrar usuário ${userId} na atividade ${activityId}`);
 
             const registration = await activityService.registerForActivity(activityId, userId);
             res.status(200).json({ message: 'Inscrição realizada com sucesso', registration });
         } catch (error) {
+            console.error("Erro ao registrar para atividade:", error);
+
+            // Erros específicos com códigos HTTP adequados
+            if (error.message.includes('Atividade não encontrada')) {
+                return res.status(404).json({ message: error.message });
+            }
+            if (error.message.includes('já está inscrito')) {
+                return res.status(400).json({ message: error.message });
+            }
+            if (error.message.includes('já começou')) {
+                return res.status(400).json({ message: error.message });
+            }
+            if (error.message.includes('vagas disponíveis')) {
+                return res.status(400).json({ message: error.message });
+            }
+
             res.status(500).json({ message: error.message });
         }
     }
@@ -63,11 +74,29 @@ class ActivityController {
     async cancelRegistration(req, res) {
         try {
             const { activityId } = req.params;
-            const userId = req.userId; // Usar o ID do usuário autenticado
+            const { userId } = req.body;
+
+            if (!activityId || !userId) {
+                return res.status(400).json({ message: 'ID da atividade e ID do usuário são obrigatórios' });
+            }
+
+            console.log(`Tentando cancelar registro do usuário ${userId} na atividade ${activityId}`);
 
             const result = await activityService.cancelRegistration(activityId, userId);
             res.status(200).json({ message: 'Inscrição cancelada com sucesso', result });
         } catch (error) {
+            console.error("Erro ao cancelar inscrição:", error);
+
+            if (error.message.includes('Atividade não encontrada')) {
+                return res.status(404).json({ message: error.message });
+            }
+            if (error.message.includes('não está inscrito')) {
+                return res.status(400).json({ message: error.message });
+            }
+            if (error.message.includes('já começou')) {
+                return res.status(400).json({ message: error.message });
+            }
+
             res.status(500).json({ message: error.message });
         }
     }
@@ -76,11 +105,23 @@ class ActivityController {
     async editActivity(req, res) {
         try {
             const { activityId } = req.params;
-            const { title, description, date, location, maxParticipants } = req.body;
 
-            const updatedActivity = await activityService.editActivity(activityId, { title, description, date, location, maxParticipants });
+            if (!activityId) {
+                return res.status(400).json({ message: 'ID da atividade é obrigatório' });
+            }
+
+            const updates = req.body;
+            console.log(`Tentando editar atividade ${activityId}`, updates);
+
+            const updatedActivity = await activityService.editActivity(activityId, updates);
             res.status(200).json({ message: 'Atividade atualizada com sucesso', updatedActivity });
         } catch (error) {
+            console.error("Erro ao editar atividade:", error);
+
+            if (error.message.includes('Atividade não encontrada')) {
+                return res.status(404).json({ message: error.message });
+            }
+
             res.status(500).json({ message: error.message });
         }
     }
@@ -90,9 +131,21 @@ class ActivityController {
         try {
             const { activityId } = req.params;
 
+            if (!activityId) {
+                return res.status(400).json({ message: 'ID da atividade é obrigatório' });
+            }
+
+            console.log(`Tentando excluir atividade ${activityId}`);
+
             await activityService.deleteActivity(activityId);
             res.status(200).json({ message: 'Atividade excluída com sucesso' });
         } catch (error) {
+            console.error("Erro ao excluir atividade:", error);
+
+            if (error.message.includes('Atividade não encontrada')) {
+                return res.status(404).json({ message: error.message });
+            }
+
             res.status(500).json({ message: error.message });
         }
     }
@@ -102,9 +155,21 @@ class ActivityController {
         try {
             const { activityId } = req.params;
 
+            if (!activityId) {
+                return res.status(400).json({ message: 'ID da atividade é obrigatório' });
+            }
+
+            console.log(`Buscando participantes da atividade ${activityId}`);
+
             const participants = await activityService.getActivityParticipants(activityId);
             res.status(200).json({ participants });
         } catch (error) {
+            console.error("Erro ao buscar participantes:", error);
+
+            if (error.message.includes('Atividade não encontrada')) {
+                return res.status(404).json({ message: error.message });
+            }
+
             res.status(500).json({ message: error.message });
         }
     }
