@@ -1,22 +1,38 @@
 const express = require('express');
-const dotenv = require('dotenv');
 const routes = require('./routes/routes');
+const path = require('path');
+const fs = require('fs');
 
-// Carregar variáveis de ambiente
-dotenv.config();
+// Garantir que os diretórios do banco de dados existam
+const dbDirs = ['users', 'activities', 'userActivities'];
+const dbBase = path.join(__dirname, '../db_data');
 
-// Inicializar o Express
+if (!fs.existsSync(dbBase)) {
+    fs.mkdirSync(dbBase, { recursive: true });
+    console.log('Diretório base de banco de dados criado');
+}
+
+dbDirs.forEach(dir => {
+    const dirPath = path.join(dbBase, dir);
+    if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+        console.log(`Diretório ${dir} criado`);
+    }
+});
+
 const app = express();
 
-// Middleware global
+// Middleware para processar JSON
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Servir arquivos estáticos (front-end)
+// Servir arquivos estáticos
 app.use(express.static('public'));
 
-// Rotas
+// Rotas da API
 app.use('/api', routes);
+
+// Middleware global
+app.use(express.urlencoded({ extended: true }));
 
 // Middleware de tratamento de erros
 app.use((err, req, res, next) => {

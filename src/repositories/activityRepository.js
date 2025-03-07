@@ -30,8 +30,6 @@ class ActivityRepository {
         } catch (error) {
             console.error("Erro ao listar atividades:", error);
             throw error;
-        } finally {
-            await db.close();
         }
     }
 
@@ -57,8 +55,6 @@ class ActivityRepository {
         } catch (error) {
             console.error("Erro ao criar atividade:", error);
             throw error;
-        } finally {
-            await db.close();
         }
     }
 
@@ -99,8 +95,6 @@ class ActivityRepository {
         } catch (error) {
             console.error(`Erro ao buscar atividade por ID ${activityId}:`, error);
             throw error;
-        } finally {
-            await db.close();
         }
     }
 
@@ -128,8 +122,6 @@ class ActivityRepository {
         } catch (error) {
             console.error(`Erro ao atualizar atividade ${activityId}:`, error);
             throw error;
-        } finally {
-            await db.close();
         }
     }
 
@@ -151,8 +143,6 @@ class ActivityRepository {
         } catch (error) {
             console.error(`Erro ao excluir atividade ${activityId}:`, error);
             throw error;
-        } finally {
-            await db.close();
         }
     }
 
@@ -199,8 +189,6 @@ class ActivityRepository {
         } catch (error) {
             console.error(`Erro ao registrar usuário ${userId} para atividade ${activityId}:`, error);
             throw error;
-        } finally {
-            await db.close();
         }
     }
 
@@ -226,8 +214,6 @@ class ActivityRepository {
         } catch (error) {
             console.error(`Erro ao cancelar inscrição do usuário ${userId} na atividade ${activityId}:`, error);
             throw error;
-        } finally {
-            await db.close();
         }
     }
 }
