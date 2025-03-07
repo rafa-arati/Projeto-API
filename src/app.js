@@ -1,12 +1,7 @@
 const express = require('express');
 const routes = require('./routes/routes');
-const cleanLockFiles = require('../cleanLockFiles');
 const path = require('path');
 const fs = require('fs');
-
-// Limpar arquivos LOCK e temporários na inicialização
-console.log('Iniciando limpeza de arquivos LOCK antes de iniciar o servidor...');
-cleanLockFiles();
 
 // Garantir que os diretórios do banco de dados existam
 const dbDirs = ['users', 'activities', 'userActivities'];

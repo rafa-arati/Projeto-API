@@ -114,38 +114,6 @@
                 </form>
             </section>
 
-            <!-- Modal para Edição de Atividade (admin) -->
-            <div id="edit-activity-modal" class="modal hidden">
-                <div class="modal-content">
-                    <span class="close-modal">&times;</span>
-                    <h2>Editar Atividade</h2>
-                    <form id="edit-activity-form" class="form">
-                        <input type="hidden" id="edit-activity-id">
-                        <div class="form-group">
-                            <label for="edit-activity-title">Título:</label>
-                            <input type="text" id="edit-activity-title" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit-activity-description">Descrição:</label>
-                            <textarea id="edit-activity-description" required></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit-activity-date">Data:</label>
-                            <input type="datetime-local" id="edit-activity-date" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit-activity-location">Local:</label>
-                            <input type="text" id="edit-activity-location" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit-activity-max-participants">Número Máximo de Participantes:</label>
-                            <input type="number" id="edit-activity-max-participants" min="1" required>
-                        </div>
-                        <button type="submit">Salvar Alterações</button>
-                    </form>
-                </div>
-            </div>
-
             <!-- Modal para Visualização de Participantes (admin) -->
             <div id="participants-modal" class="modal hidden">
                 <div class="modal-content">

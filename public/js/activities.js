@@ -119,6 +119,51 @@ const Activities = {
     },
 
     /**
+     * Método para garantir que os listeners do modal estejam ativos
+     * Deve ser chamado sempre que a lista de atividades for carregada
+     */
+    ensureModalListeners() {
+        console.log('Verificando listeners do modal...');
+
+        // Verificar se o modal existe
+        const modal = document.getElementById('edit-activity-modal');
+        if (!modal) {
+            console.warn('Modal de edição não encontrado no DOM');
+            return;
+        }
+
+        // Remover e readicionar o event listener do botão de fechar
+        const closeBtn = modal.querySelector('.close-modal');
+        if (closeBtn) {
+            // Clonar e substituir para remover listeners antigos
+            const newCloseBtn = closeBtn.cloneNode(true);
+            closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+
+            // Adicionar novo listener
+            newCloseBtn.addEventListener('click', () => {
+                modal.classList.add('hidden');
+                modal.style.display = 'none';
+            });
+            console.log('Listener do botão de fechar do modal recriado');
+        }
+
+        // Remover e readicionar o event listener do formulário
+        const form = document.getElementById('edit-activity-form');
+        if (form) {
+            // Clonar e substituir para remover listeners antigos
+            const newForm = form.cloneNode(true);
+            form.parentNode.replaceChild(newForm, form);
+
+            // Adicionar novo listener
+            newForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleEditActivity();
+            });
+            console.log('Listener do formulário de edição recriado');
+        }
+    },
+
+    /**
      * Abre o modal de confirmação de exclusão
      * @param {String} activityId ID da atividade a ser excluída
      */
@@ -159,6 +204,7 @@ const Activities = {
 
             // Exibir a seção de atividades
             document.getElementById('activities-section').classList.remove('hidden');
+
         } catch (error) {
             console.error('Erro ao carregar atividades:', error);
             UI.showNotification(error.message || 'Erro ao carregar atividades', 'error');
@@ -329,68 +375,135 @@ const Activities = {
     },
 
     /**
-     * Abre o modal de edição de atividade
-     * @param {Object} activity Atividade a ser editada
-     */
+ * Abre o modal de edição de atividade criando-o dinamicamente
+ * @param {Object} activity Atividade a ser editada
+ */
     openEditModal(activity) {
         try {
-            console.log('Abrindo modal de edição para atividade:', activity);
+            console.log('Criando modal dinâmico para editar atividade:', activity);
 
-            // Garantir que a atividade existe e tem os dados necessários
-            if (!activity || !activity.id) {
-                console.error('Atividade inválida para edição', activity);
-                UI.showNotification('Erro ao abrir formulário de edição', 'error');
-                return;
+            // Remover qualquer modal existente no DOM para evitar duplicação
+            const existingModal = document.getElementById('edit-activity-modal');
+            if (existingModal) {
+                existingModal.remove();
             }
 
-            // Obter as referências aos elementos do formulário
-            const idField = document.getElementById('edit-activity-id');
-            const titleField = document.getElementById('edit-activity-title');
-            const descriptionField = document.getElementById('edit-activity-description');
+            // Criar o modal dinamicamente
+            const modalHTML = `
+            <div id="edit-activity-modal" class="modal" style="display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); z-index: 1000; align-items: center; justify-content: center;">
+                <div class="modal-content" style="background-color: white; padding: 30px; border-radius: 8px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; position: relative; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);">
+                    <span class="close-modal" style="position: absolute; top: 10px; right: 15px; font-size: 28px; cursor: pointer; color: #555;">&times;</span>
+                    <h2>Editar Atividade</h2>
+                    <form id="edit-activity-form" class="form" style="width: 100%; margin-top: 20px;">
+                        <input type="hidden" id="edit-activity-id" value="${activity.id}">
+                        <div class="form-group">
+                            <label for="edit-activity-title">Título:</label>
+                            <input type="text" id="edit-activity-title" value="${activity.title || ''}" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px;">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-activity-description">Descrição:</label>
+                            <textarea id="edit-activity-description" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; min-height: 100px; margin-bottom: 15px;">${activity.description || ''}</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-activity-date">Data:</label>
+                            <input type="datetime-local" id="edit-activity-date" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px;">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-activity-location">Local:</label>
+                            <input type="text" id="edit-activity-location" value="${activity.location || ''}" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px;">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-activity-max-participants">Número Máximo de Participantes:</label>
+                            <input type="number" id="edit-activity-max-participants" value="${activity.maxParticipants || ''}" min="1" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px;">
+                        </div>
+                        <button type="submit" style="padding: 10px 20px; background-color: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px;">Salvar Alterações</button>
+                    </form>
+                </div>
+            </div>
+        `;
+
+            // Adicionar o modal ao body
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+            // Configurar a data no formato correto para o input datetime-local
             const dateField = document.getElementById('edit-activity-date');
-            const locationField = document.getElementById('edit-activity-location');
-            const maxParticipantsField = document.getElementById('edit-activity-max-participants');
+            if (dateField && activity.date) {
+                try {
+                    const activityDate = new Date(activity.date);
+                    if (!isNaN(activityDate.getTime())) {
+                        const year = activityDate.getFullYear();
+                        const month = String(activityDate.getMonth() + 1).padStart(2, '0');
+                        const day = String(activityDate.getDate()).padStart(2, '0');
+                        const hours = String(activityDate.getHours()).padStart(2, '0');
+                        const minutes = String(activityDate.getMinutes()).padStart(2, '0');
 
-            // Verificar se os elementos existem
-            if (!idField || !titleField || !descriptionField || !dateField || !locationField || !maxParticipantsField) {
-                console.error('Elementos do formulário de edição não encontrados');
-                UI.showNotification('Erro ao abrir formulário de edição: elementos não encontrados', 'error');
-                return;
-            }
-
-            // Preencher os campos do formulário com os dados da atividade
-            idField.value = activity.id;
-            titleField.value = activity.title || '';
-            descriptionField.value = activity.description || '';
-            locationField.value = activity.location || '';
-            maxParticipantsField.value = activity.maxParticipants || '';
-
-            // Formatar a data para o input datetime-local
-            try {
-                const activityDate = new Date(activity.date);
-                if (!isNaN(activityDate.getTime())) {
-                    // Formato para datetime-local: YYYY-MM-DDThh:mm
-                    const year = activityDate.getFullYear();
-                    const month = String(activityDate.getMonth() + 1).padStart(2, '0');
-                    const day = String(activityDate.getDate()).padStart(2, '0');
-                    const hours = String(activityDate.getHours()).padStart(2, '0');
-                    const minutes = String(activityDate.getMinutes()).padStart(2, '0');
-
-                    const formattedDate = `${year}-${month}-${day}T${hours}:${minutes}`;
-                    dateField.value = formattedDate;
-                } else {
-                    dateField.value = '';
-                    console.warn('Data inválida para a atividade:', activity.date);
+                        const formattedDate = `${year}-${month}-${day}T${hours}:${minutes}`;
+                        dateField.value = formattedDate;
+                    }
+                } catch (error) {
+                    console.error('Erro ao processar data:', error);
                 }
-            } catch (dateError) {
-                console.error('Erro ao processar data da atividade:', dateError);
-                dateField.value = '';
             }
 
-            // Exibir o modal
-            document.getElementById('edit-activity-modal').classList.remove('hidden');
+            // Adicionar event listener para o botão de fechar
+            const closeBtn = document.querySelector('#edit-activity-modal .close-modal');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => {
+                    const modal = document.getElementById('edit-activity-modal');
+                    if (modal) {
+                        modal.remove();
+                    }
+                });
+            }
+
+            // Adicionar event listener para o formulário
+            const form = document.getElementById('edit-activity-form');
+            if (form) {
+                form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+
+                    // Coletar dados do formulário
+                    const activityId = document.getElementById('edit-activity-id').value;
+                    const title = document.getElementById('edit-activity-title').value;
+                    const description = document.getElementById('edit-activity-description').value;
+                    const date = document.getElementById('edit-activity-date').value;
+                    const location = document.getElementById('edit-activity-location').value;
+                    const maxParticipants = document.getElementById('edit-activity-max-participants').value;
+
+                    // Validar dados
+                    if (!title || !description || !date || !location || !maxParticipants) {
+                        UI.showNotification('Por favor, preencha todos os campos', 'error');
+                        return;
+                    }
+
+                    // Chamar API para atualizar
+                    API.updateActivity(activityId, {
+                        title,
+                        description,
+                        date,
+                        location,
+                        maxParticipants: parseInt(maxParticipants, 10)
+                    }).then(() => {
+                        // Remover o modal
+                        const modal = document.getElementById('edit-activity-modal');
+                        if (modal) {
+                            modal.remove();
+                        }
+
+                        // Mostrar mensagem de sucesso
+                        UI.showNotification('Atividade atualizada com sucesso!', 'success');
+
+                        // Recarregar lista de atividades
+                        this.loadAllActivities();
+                    }).catch(error => {
+                        UI.showNotification(error.message || 'Erro ao atualizar atividade', 'error');
+                    });
+                });
+            }
+
+            console.log('Modal dinâmico criado e configurado');
         } catch (error) {
-            console.error('Erro ao abrir modal de edição:', error);
+            console.error('Erro ao criar modal dinâmico:', error);
             UI.showNotification('Erro ao abrir formulário de edição', 'error');
         }
     },
@@ -658,5 +771,92 @@ const Activities = {
                 console.error("Formulário desapareceu após renderização");
             }
         }, 100);
+    },
+
+    /**
+     * Fecha o modal de edição
+     */
+    closeEditModal() {
+        const modal = document.getElementById('edit-activity-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+            console.log('Modal de edição fechado');
+        }
+    },
+
+    /**
+     * Configura listeners de eventos relacionados a atividades
+     */
+    setupEventListeners() {
+        // Botão para visualizar atividades
+        const viewActivitiesBtn = document.getElementById('view-activities-btn');
+        if (viewActivitiesBtn) {
+            viewActivitiesBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.showActivitiesSection();
+            });
+            console.log("Listener adicionado para botão 'Ver Atividades'");
+        }
+
+        // Botão para visualizar minhas atividades
+        const viewMyActivitiesBtn = document.getElementById('view-my-activities-btn');
+        if (viewMyActivitiesBtn) {
+            viewMyActivitiesBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.showMyActivitiesSection();
+            });
+            console.log("Listener adicionado para botão 'Minhas Atividades'");
+        }
+
+        // Botão para criar atividade
+        const createActivityBtn = document.getElementById('create-activity-btn');
+        if (createActivityBtn) {
+            createActivityBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.showCreateActivitySection();
+            });
+            console.log("Listener adicionado para botão 'Criar Nova Atividade'");
+        }
+
+        // Formulário de criação de atividade
+        const createActivityForm = document.getElementById('create-activity-form');
+        if (createActivityForm) {
+            createActivityForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleCreateActivity();
+            });
+            console.log("Listener adicionado para formulário de criação");
+        }
+
+        // Formulário de edição de atividade
+        const editActivityForm = document.getElementById('edit-activity-form');
+        if (editActivityForm) {
+            editActivityForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleEditActivity();
+            });
+            console.log("Listener adicionado para formulário de edição");
+        }
+
+        // Botão para fechar o modal de edição
+        const closeModalBtn = document.querySelector('#edit-activity-modal .close-modal');
+        if (closeModalBtn) {
+            closeModalBtn.addEventListener('click', () => {
+                this.closeEditModal();
+            });
+            console.log("Listener adicionado para botão de fechar modal de edição");
+        }
+
+        // Botões para fechar modais (geral)
+        document.querySelectorAll('.close-modal').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.modal').forEach(modal => {
+                    modal.classList.add('hidden');
+                    modal.style.display = 'none';
+                });
+            });
+            console.log("Listener adicionado para fechar modais");
+        });
     }
 };
