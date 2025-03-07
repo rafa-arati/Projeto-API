@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Voluntariado</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- Container Principal -->
+    <div class="container">
+        <!-- Cabeçalho -->
+        <header>
+            <h1>Sistema de Voluntariado</h1>
+            <div id="user-info" class="hidden">
+                <span id="username-display"></span>
+                <button id="logout-btn">Sair</button>
+            </div>
+        </header>
+
+        <!-- Navegação -->
+        <nav id="main-nav" class="hidden">
+            <ul>
+                <li><a href="#" id="view-activities-btn">Ver Atividades Disponíveis</a></li>
+                <li><a href="#" id="view-my-activities-btn">Minhas Atividades</a></li>
+                <li class="admin-only hidden"><a href="#" id="create-activity-btn">Criar Nova Atividade</a></li>
+            </ul>
+        </nav>
+
+        <!-- Conteúdo Principal -->
+        <main>
+            <!-- Seção de Login e Registro -->
+            <section id="auth-section">
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="login-form">Login</button>
+                    <button class="tab-btn" data-tab="register-form">Registrar</button>
+                </div>
+
+                <!-- Formulário de Login -->
+                <form id="login-form" class="form">
+                    <div class="form-group">
+                        <label for="login-identifier">Email ou Nome de Usuário:</label>
+                        <input type="text" id="login-identifier" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Senha:</label>
+                        <input type="password" id="login-password" required>
+                    </div>
+                    <button type="submit">Entrar</button>
+                </form>
+
+                <!-- Formulário de Registro -->
+                <form id="register-form" class="form hidden">
+                    <div class="form-group">
+                        <label for="register-username">Nome de Usuário:</label>
+                        <input type="text" id="register-username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="register-email">Email:</label>
+                        <input type="email" id="register-email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="register-password">Senha:</label>
+                        <input type="password" id="register-password" required>
+                        <small>A senha deve ter pelo menos 8 caracteres</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="register-email-password">Confirmar Senha:</label>
+                        <input type="password" id="register-email-password" required>
+                    </div>
+                    <button type="submit">Registrar</button>
+                </form>
+            </section>
+
+            <!-- Seção de Atividades Disponíveis -->
+            <section id="activities-section" class="hidden">
+                <h2>Atividades Disponíveis</h2>
+                <div id="activities-list" class="activities-container"></div>
+            </section>
+
+            <!-- Seção de Minhas Atividades -->
+            <section id="my-activities-section" class="hidden">
+                <h2>Minhas Atividades</h2>
+                <div id="my-activities-list" class="activities-container"></div>
+            </section>
+
+            <!-- Seção de Criação de Atividade (somente admin) -->
+            <section id="create-activity-section" class="hidden">
+                <h2>Criar Nova Atividade</h2>
+                <form id="create-activity-form" class="form">
+                    <div class="form-group">
+                        <label for="activity-title">Título:</label>
+                        <input type="text" id="activity-title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="activity-description">Descrição:</label>
+                        <textarea id="activity-description" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="activity-date">Data:</label>
+                        <input type="datetime-local" id="activity-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="activity-location">Local:</label>
+                        <input type="text" id="activity-location" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="activity-max-participants">Número Máximo de Participantes:</label>
+                        <input type="number" id="activity-max-participants" min="1" required>
+                    </div>
+                    <button type="submit">Criar Atividade</button>
+                </form>
+            </section>
+
+            <!-- Modal para Edição de Atividade (admin) -->
+            <div id="edit-activity-modal" class="modal hidden">
+                <div class="modal-content">
+                    <span class="close-modal">&times;</span>
+                    <h2>Editar Atividade</h2>
+                    <form id="edit-activity-form" class="form">
+                        <input type="hidden" id="edit-activity-id">
+                        <div class="form-group">
+                            <label for="edit-activity-title">Título:</label>
+                            <input type="text" id="edit-activity-title" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-activity-description">Descrição:</label>
+                            <textarea id="edit-activity-description" required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-activity-date">Data:</label>
+                            <input type="datetime-local" id="edit-activity-date" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-activity-location">Local:</label>
+                            <input type="text" id="edit-activity-location" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-activity-max-participants">Número Máximo de Participantes:</label>
+                            <input type="number" id="edit-activity-max-participants" min="1" required>
+                        </div>
+                        <button type="submit">Salvar Alterações</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Modal para Visualização de Participantes (admin) -->
+            <div id="participants-modal" class="modal hidden">
+                <div class="modal-content">
+                    <span class="close-modal">&times;</span>
+                    <h2>Participantes da Atividade</h2>
+                    <div id="participants-list"></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Notificação/Toast -->
+        <div id="notification" class="hidden"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/ui.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/userActivitiesHelper.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/activities.js"></script>
+    <script src="js/main.js"></script>
+</body>
+
+</html>

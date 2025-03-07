@@ -6,6 +6,10 @@ const { generateToken } = require('../utils/jwtUtils');
 class UserService {
     // Registra um novo usuário
     async registerUser(username, email, password, emailPassword, role = 'user') {
+        // Nota: emailPassword agora é usado como confirmação de senha,
+        // mas mantemos o nome do parâmetro por compatibilidade.
+        // A validação de que as senhas coincidem é feita no controller.
+
         // Verifica se o e-mail ou nome de usuário já existe
         const existingUser = await userRepository.findUserByEmailOrUsername(email, username);
         if (existingUser) {
@@ -36,8 +40,8 @@ class UserService {
 
         console.log(`Usuário logado com sucesso: ${user.email}, role: ${user.role}`);
 
-        // Gera o token JWT com o role do usuário
-        const token = generateToken(user.email, user.role);
+        // Gera o token JWT com o role do usuário e o username
+        const token = generateToken(user.email, user.username, user.role);
         return token;
     }
 

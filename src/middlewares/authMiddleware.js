@@ -23,9 +23,10 @@ const authMiddleware = (req, res, next) => {
 
     // Adicionar as informações do usuário ao objeto de requisição
     req.userId = decoded.userId;
+    req.username = decoded.username;
     req.userRole = decoded.role || 'user';
 
-    console.log(`Usuário autenticado: ${req.userId}, Role: ${req.userRole}`);
+    console.log(`Usuário autenticado: ${req.userId}, Username: ${req.username}, Role: ${req.userRole}`);
 
     // Permitir que a requisição continue
     next();

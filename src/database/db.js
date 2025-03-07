@@ -1,9 +1,8 @@
 const RocksDB = require('rocksdb');
 const path = require('path');
 const fs = require('fs');
-const { promisify } = require('util');
 
-// Cria um mapa de instâncias para o padrão singleton
+// Cache global para instâncias do banco de dados
 const dbInstances = {};
 
 class Database {
@@ -11,168 +10,87 @@ class Database {
         this.dbName = dbName;
         this.dbPath = path.resolve(__dirname, '../../db_data', dbName);
         this.db = null;
-        this.isOpen = false;
-    }
 
-    // Implementa o padrão singleton para garantir apenas uma instância por banco de dados
-    static getInstance(dbName) {
-        if (!dbInstances[dbName]) {
-            dbInstances[dbName] = new Database(dbName);
+        // Garantir que o diretório existe
+        if (!fs.existsSync(this.dbPath)) {
+            try {
+                fs.mkdirSync(this.dbPath, { recursive: true });
+                console.log(`Diretório criado: ${this.dbPath}`);
+            } catch (err) {
+                console.error(`Erro ao criar diretório ${this.dbPath}:`, err);
+            }
         }
-        return dbInstances[dbName];
     }
 
-    // Abre o banco de dados
+    /**
+     * Abre ou recupera uma conexão com o banco de dados
+     */
     async open() {
         try {
-            // Se já estiver aberto, retorna
-            if (this.isOpen && this.db) {
+            // Se já temos uma instância no cache, usamos ela
+            if (dbInstances[this.dbName] && dbInstances[this.dbName].isOpen) {
+                this.db = dbInstances[this.dbName].db;
                 return;
             }
 
-            // Certifique-se de que o diretório existe
-            if (!fs.existsSync(this.dbPath)) {
-                console.log(`Criando diretório para o banco de dados: ${this.dbPath}`);
-                fs.mkdirSync(this.dbPath, { recursive: true });
-            }
-
-            // Cria uma nova instância do banco de dados
+            // Criar nova instância
             this.db = new RocksDB(this.dbPath);
 
-            // Abre o banco de dados com promisify
+            // Abrir conexão
             await new Promise((resolve, reject) => {
                 this.db.open({
                     createIfMissing: true,
                     errorIfExists: false
                 }, (err) => {
                     if (err) {
-                        console.error(`Erro ao abrir o banco de dados ${this.dbName}:`, err);
-                        this.db = null;
+                        console.error(`Erro ao abrir banco de dados ${this.dbName}:`, err);
                         reject(err);
                     } else {
-                        this.isOpen = true;
                         console.log(`Banco de dados ${this.dbName} aberto com sucesso`);
+
+                        // Armazenar no cache global
+                        dbInstances[this.dbName] = {
+                            db: this.db,
+                            isOpen: true
+                        };
+
                         resolve();
                     }
                 });
             });
         } catch (err) {
-            console.error(`Erro ao abrir o banco de dados ${this.dbName}:`, err);
-            this.isOpen = false;
-            this.db = null;
+            console.error(`Erro ao abrir banco de dados ${this.dbName}:`, err);
             throw err;
         }
     }
 
-    // Fecha o banco de dados
-    async close() {
-        try {
-            if (!this.db || !this.isOpen) {
-                this.isOpen = false;
-                this.db = null;
-                return;
-            }
-
-            await new Promise((resolve, reject) => {
-                this.db.close((err) => {
-                    if (err) {
-                        console.error(`Erro ao fechar o banco de dados ${this.dbName}:`, err);
-                        reject(err);
-                    } else {
-                        console.log(`Banco de dados ${this.dbName} fechado com sucesso`);
-                        resolve();
-                    }
-                });
-            });
-
-            this.isOpen = false;
-            this.db = null;
-        } catch (err) {
-            console.error(`Erro ao fechar o banco de dados ${this.dbName}:`, err);
-            // Mesmo em caso de erro, marca como fechado
-            this.isOpen = false;
-            this.db = null;
-        }
-    }
-
-    // Lista todos os itens no banco de dados
-    async listAll() {
-        await this.open();
-
-        try {
-            const items = [];
-
-            await new Promise((resolve, reject) => {
-                const iterator = this.db.iterator({});
-
-                const next = () => {
-                    iterator.next((err, key, value) => {
-                        if (err) {
-                            iterator.end(() => reject(err));
-                            return;
-                        }
-
-                        if (!key && !value) {
-                            iterator.end((endErr) => {
-                                if (endErr) {
-                                    reject(endErr);
-                                } else {
-                                    resolve();
-                                }
-                            });
-                            return;
-                        }
-
-                        try {
-                            const item = {
-                                key: key.toString(),
-                                value: JSON.parse(value.toString())
-                            };
-                            items.push(item);
-                            next();
-                        } catch (parseErr) {
-                            console.error(`Erro ao parsear item:`, parseErr);
-                            next(); // Continue mesmo com erro de parsing
-                        }
-                    });
-                };
-
-                next();
-            });
-
-            return items;
-        } catch (error) {
-            console.error(`Erro ao listar todos os itens de ${this.dbName}:`, error);
-            throw error;
-        }
-    }
-
-    // Insere um item no banco de dados
+    /**
+     * Insere um valor no banco de dados
+     */
     async put(key, value) {
-        await this.open();
-
         try {
-            await new Promise((resolve, reject) => {
+            await this.open();
+
+            return new Promise((resolve, reject) => {
                 this.db.put(key, value, (err) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve();
-                    }
+                    if (err) reject(err);
+                    else resolve();
                 });
             });
-        } catch (error) {
-            console.error(`Erro ao inserir item em ${this.dbName}:`, error);
-            throw error;
+        } catch (err) {
+            console.error(`Erro ao inserir dados (${key}) no banco ${this.dbName}:`, err);
+            throw err;
         }
     }
 
-    // Obtém um item do banco de dados
+    /**
+     * Recupera um valor do banco de dados
+     */
     async get(key) {
-        await this.open();
-
         try {
-            return await new Promise((resolve, reject) => {
+            await this.open();
+
+            return new Promise((resolve, reject) => {
                 this.db.get(key, (err, value) => {
                     if (err) {
                         if (err.notFound || err.type === 'NotFoundError' ||
@@ -187,31 +105,109 @@ class Database {
                     }
                 });
             });
-        } catch (error) {
-            console.error(`Erro ao obter item de ${this.dbName}:`, error);
-            throw error;
+        } catch (err) {
+            console.error(`Erro ao recuperar dados (${key}) do banco ${this.dbName}:`, err);
+            throw err;
         }
     }
 
-    // Remove um item do banco de dados
+    /**
+     * Remove um valor do banco de dados
+     */
     async del(key) {
-        await this.open();
-
         try {
-            await new Promise((resolve, reject) => {
+            await this.open();
+
+            return new Promise((resolve, reject) => {
                 this.db.del(key, (err) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve();
-                    }
+                    if (err) reject(err);
+                    else resolve();
                 });
             });
-        } catch (error) {
-            console.error(`Erro ao remover item de ${this.dbName}:`, error);
-            throw error;
+        } catch (err) {
+            console.error(`Erro ao excluir dados (${key}) do banco ${this.dbName}:`, err);
+            throw err;
+        }
+    }
+
+    /**
+     * Lista todos os itens no banco de dados
+     */
+    async listAll() {
+        try {
+            await this.open();
+
+            const items = [];
+
+            try {
+                // Função para obter todas as chaves
+                const getKeys = () => {
+                    return new Promise((resolve, reject) => {
+                        const keys = [];
+                        const iterator = this.db.iterator({});
+
+                        const next = () => {
+                            iterator.next((err, key, value) => {
+                                if (err) {
+                                    iterator.end(() => reject(err));
+                                    return;
+                                }
+
+                                if (!key) {
+                                    iterator.end((endErr) => {
+                                        if (endErr) reject(endErr);
+                                        else resolve(keys);
+                                    });
+                                    return;
+                                }
+
+                                keys.push(key.toString());
+                                next();
+                            });
+                        };
+
+                        next();
+                    });
+                };
+
+                // Obter todas as chaves
+                const keys = await getKeys();
+
+                // Para cada chave, obter o valor
+                for (const key of keys) {
+                    try {
+                        const value = await this.get(key);
+
+                        if (value) {
+                            try {
+                                items.push({
+                                    key: key,
+                                    value: JSON.parse(value.toString())
+                                });
+                            } catch (parseErr) {
+                                console.error(`Erro ao parsear valor para a chave ${key}:`, parseErr);
+                            }
+                        }
+                    } catch (getErr) {
+                        console.error(`Erro ao obter valor para a chave ${key}:`, getErr);
+                    }
+                }
+            } catch (iterErr) {
+                console.error(`Erro ao iterar sobre o banco ${this.dbName}:`, iterErr);
+            }
+
+            return items;
+        } catch (err) {
+            console.error(`Erro ao listar todos os itens do banco ${this.dbName}:`, err);
+            return []; // Retorna array vazio em caso de erro
         }
     }
 }
 
+// Obtém uma instância do banco de dados
+function getInstance(dbName) {
+    return new Database(dbName);
+}
+
 module.exports = Database;
+module.exports.getInstance = getInstance;

@@ -7,11 +7,14 @@ class UserController {
         try {
             const { username, email, password, emailPassword, role } = req.body;
 
+            // Agora emailPassword é usado como confirmação de senha
+            const confirmPassword = emailPassword;
+
             // Log para debug
             console.log('Registrando usuário:', { username, email, role });
 
             // Validação básica
-            if (!username || !email || !password || !emailPassword) {
+            if (!username || !email || !password || !confirmPassword) {
                 return res.status(400).json({ message: 'Todos os campos são obrigatórios' });
             }
 
@@ -25,8 +28,22 @@ class UserController {
                 return res.status(400).json({ message: passwordValidation.message });
             }
 
-            // Chama o service para registrar o usuário
-            const user = await userService.registerUser(username, email, password, emailPassword, role);
+            // Verificar se as senhas coincidem
+            if (password !== confirmPassword) {
+                return res.status(400).json({ message: 'As senhas não coincidem' });
+            }
+
+            // VERIFICAÇÃO PARA ADMIN: Se o email for admin@example.com, define role como admin
+            let userRole = role;
+            if (email === 'admin@example.com') {
+                userRole = 'admin';
+                console.log('Criando usuário com privilégios de ADMINISTRADOR');
+            } else {
+                userRole = 'user';
+            }
+
+            // Chama o service para registrar o usuário com a role correta
+            const user = await userService.registerUser(username, email, password, confirmPassword, userRole);
 
             // Remover a senha do objeto retornado
             const userResponse = { ...user };

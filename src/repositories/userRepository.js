@@ -19,8 +19,6 @@ class UserRepository {
         } catch (error) {
             console.error(`Erro ao criar usuário ${username}:`, error);
             throw error;
-        } finally {
-            await db.close();
         }
     }
 
@@ -48,8 +46,6 @@ class UserRepository {
         } catch (error) {
             console.error(`Erro ao buscar usuário (email: ${email}, username: ${username}):`, error);
             throw error;
-        } finally {
-            await db.close();
         }
     }
 
@@ -63,6 +59,13 @@ class UserRepository {
             const allItems = await activityDb.listAll();
             console.log(`Total de atividades no banco: ${allItems.length}`);
 
+            // Debug: listar todas as atividades e seus participantes
+            for (const item of allItems) {
+                if (item.key.startsWith('activity:') && item.value && item.value.participants) {
+                    console.log(`Atividade: ${item.key}, Participantes:`, item.value.participants);
+                }
+            }
+
             // Filtrar apenas atividades em que o usuário está inscrito
             const userActivities = allItems
                 .filter(item => {
@@ -73,10 +76,37 @@ class UserRepository {
 
                     // Verifique se tem participantes e se o usuário está neles
                     const activity = item.value;
-                    return activity &&
-                        activity.participants &&
-                        Array.isArray(activity.participants) &&
-                        activity.participants.includes(userId);
+
+                    if (!activity || !activity.participants || !Array.isArray(activity.participants)) {
+                        return false;
+                    }
+
+                    // Verificação SUPER flexível para encontrar o usuário na lista de participantes
+                    for (const participantId of activity.participants) {
+                        // Verificação exata
+                        if (participantId === userId) {
+                            console.log(`Encontrada correspondência exata para ${userId} na atividade ${item.key}`);
+                            return true;
+                        }
+
+                        // Conversão para string e verificação
+                        const participantStr = String(participantId);
+                        const userIdStr = String(userId);
+
+                        if (participantStr === userIdStr) {
+                            console.log(`Encontrada correspondência de string para ${userId} na atividade ${item.key}`);
+                            return true;
+                        }
+
+                        // Verificação parcial
+                        if (participantStr.includes(userIdStr) || userIdStr.includes(participantStr)) {
+                            console.log(`Encontrada correspondência parcial para ${userId} na atividade ${item.key}`);
+                            console.log(`Participante: "${participantStr}", UserId: "${userIdStr}"`);
+                            return true;
+                        }
+                    }
+
+                    return false;
                 })
                 .map(item => {
                     // Certifique-se de que o ID está incluído
@@ -88,14 +118,12 @@ class UserRepository {
                 });
 
             console.log(`Encontradas ${userActivities.length} atividades para o usuário ${userId}`);
+            console.log("Atividades encontradas:", userActivities.map(a => a.title || a.id));
 
             return userActivities;
         } catch (error) {
             console.error(`Erro ao buscar atividades para o usuário ${userId}:`, error);
             return []; // Retorna array vazio em caso de erro
-        } finally {
-            // Sempre fechar a conexão
-            await activityDb.close();
         }
     }
 }
